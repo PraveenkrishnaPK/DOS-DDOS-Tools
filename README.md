@@ -78,6 +78,22 @@ A pair of Python scripts for simulating and detecting TCP SYN flood attacks on W
   Sends a burst of TCP SYNs for quick detector validation.
   ```python test_syn_sender.py```
 
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repo
+
+2. Create a feature branch: git checkout -b feat/YourFeature
+
+3. Commit your changes: `git commit -m "Add feature"
+
+4. Push branch: git push origin feat/YourFeature
+
+5. Open a pull request
+
+## License
+This project is licensed under the MIT License. See [LICENSE](https://github.com/PraveenkrishnaPK/DOS-DDOS-Tools/blob/main/LICENSE) for details.
 
 
 
