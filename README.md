@@ -25,7 +25,7 @@ A pair of Python scripts for simulating and detecting TCP SYN flood attacks on W
 ## Prerequisites
 
 - **Python 3.6+**  
-- **Npcap** installed with WinPcap API compatibility  
+- **Npcap** installed with WinPcap API compatibility, you can download from [Npcap Download](https://npcap.com/#download)
 - **Administrator** privileges to run raw sockets and sniff packets  
 
 ---
