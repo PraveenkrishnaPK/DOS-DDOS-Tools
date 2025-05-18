@@ -2,13 +2,14 @@
 """
 ddos_detector_windows.py
 
-Detect SYN‐flood attacks on Windows.
-Usage:
-  python ddos_detector_windows.py --list
-  python ddos_detector_windows.py --iface "<NPF Name>" --window 10 --threshold 200
-"""
+Detect TCP SYN‐flood attacks by counting SYN packets per source IP in a sliding window.
 
-import argparse, time
+Usage (Windows Admin):
+  python ddos_detector_windows.py --iface "Wi-Fi" --window 10 --threshold 200
+  python ddos_detector_windows.py --list
+"""
+import argparse
+import time
 from collections import defaultdict, deque
 from scapy.all import sniff, TCP, IP, conf
 
@@ -20,7 +21,6 @@ class SlidingWindowCounter:
     def add(self, src_ip: str, timestamp: float):
         dq = self.data[src_ip]
         dq.append(timestamp)
-        # drop anything older than window_size
         while dq and dq[0] < timestamp - self.window_size:
             dq.popleft()
 
@@ -28,7 +28,8 @@ class SlidingWindowCounter:
         return len(self.data[src_ip])
 
 def packet_callback(pkt, counter: SlidingWindowCounter, threshold: int):
-    if IP in pkt and TCP in pkt and (pkt[TCP].flags & 0x02):  # SYN flag
+    # look for SYN flag
+    if IP in pkt and TCP in pkt and (pkt[TCP].flags & 0x02):
         src = pkt[IP].src
         now = time.time()
         counter.add(src, now)
@@ -38,19 +39,18 @@ def packet_callback(pkt, counter: SlidingWindowCounter, threshold: int):
 
 def list_interfaces():
     print("Available NPF interfaces:")
-    # conf.ifaces.values() yields Interface objects with .name and .description
     for iface in conf.ifaces.values():
         print(f"  {iface.name}\n    ↳ {iface.description}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Windows DDoS SYN‐flood detector")
+    parser = argparse.ArgumentParser(description="Windows DDoS SYN-flood detector")
     parser.add_argument("--list", action="store_true",
                         help="List available interfaces and exit")
-    parser.add_argument("--iface", help="NPF interface name (e.g. '\\Device\\NPF_{…}')")
+    parser.add_argument("--iface", help="Interface name (e.g. 'Wi-Fi' or GUID')")
     parser.add_argument("--window", type=float, default=10.0,
-                        help="Sliding window size in seconds")
+                        help="Sliding window size in seconds (default: 10)")
     parser.add_argument("--threshold", type=int, default=200,
-                        help="Alert threshold: SYNs per IP per window")
+                        help="Alert threshold: SYNs per IP per window (default: 200)")
     args = parser.parse_args()
 
     if args.list:
@@ -70,4 +70,4 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    main()
