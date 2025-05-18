@@ -63,11 +63,11 @@ A pair of Python scripts for simulating and detecting TCP SYN flood attacks on W
     --rate 100       # packets per second per thread \
     --threads 4      # threads for ddos mode
    ```
-  Example output:
-  ```
-  [+] Starting DDoS on 123.456.78.900:80 with 4 threads × 100 pps each
-  ```
-  Replace 123.456.78.900 with your detector machine’s IP.
+    Example output:
+    ```
+    [+] Starting DDoS on 123.456.78.900:80 with 4 threads × 100 pps each
+    ```
+    Replace 123.456.78.900 with your detector machine’s IP.
 
 ## Optional Testing Scripts
 - ```test_sniffer.py```
