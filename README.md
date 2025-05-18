@@ -67,7 +67,15 @@ A pair of Python scripts for simulating and detecting TCP SYN flood attacks on W
     ```
     [+] Starting DDoS on 123.456.78.900:80 with 4 threads × 100 pps each
     ```
-    Replace 123.456.78.900 with your detector machine’s IP.
+    | Replace 123.456.78.900 with your detector machine’s IP.
+
+    - Threads refers to the number of concurrent worker routines you’ve spawned to send packets. In your command you used --threads 4, so the simulator launches 4 independent loops (in Python threads), each sending flood traffic in parallel.
+    
+    - pps stands for “packets per second.” In your case you passed --rate 100, so each of those 4 threads will send 100 TCP SYN packets every second.
+    
+    | Putting it together:
+    
+    - 4 threads × 100 pps each ⇒ 400 SYN packets per second total being sent toward the target.
 
 ## Optional Testing Scripts
 - ```test_sniffer.py```
